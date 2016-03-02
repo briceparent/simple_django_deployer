@@ -149,6 +149,10 @@ def create_site(parser):
         print("You should give a unique name for this site (ex : '--sitename production').")
         return
 
+    if '_' in parser.domain:
+        print("The domain can't contain underscores.")
+        return
+
     # Data to store
     data = {
         'id': len(get_all_sites_list()) + 1,
@@ -277,7 +281,7 @@ create_parser = argparse.ArgumentParser(add_help=False)
 group = create_parser.add_mutually_exclusive_group()
 group.add_argument('--staging', help='Is this a staging/testing server ? (default)', action='store_true')
 group.add_argument('--production', help='Is this a production server ?', action='store_true')
-create_parser.add_argument('--server', required=True, type=int, help='The id of the server on which to create the site')
+create_parser.add_argument('--server', type=int, help='The id of the server on which to create the site')
 create_parser.add_argument('--domain', required=True, help='The domain of the site')
 create_parser.add_argument('--port', default=80, type=int, help='The port to listen to (defaults to 80)')
 create_parser.add_argument('--sitename', required=True, help='The name of the site (will be used for deployments)')
@@ -289,7 +293,7 @@ deploy_parser.add_argument(
     '--site', default=0, type=int,
     help='The id of the site on which to install the code. Leave empty to get a liste of available sites.')
 deploy_parser.add_argument(
-    '--tag', required=True,
+    '--tag', default=0,
     help='The tag to deploy on the installation. Leave empty to get a list of the last available tags on active branch.')
 
 superuser_parser = argparse.ArgumentParser(add_help=False)

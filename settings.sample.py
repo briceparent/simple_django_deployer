@@ -7,4 +7,7 @@ VIRTUALENV_FOLDER_NAME = 'env'
 # Host used on local development machine
 DEV_DOMAIN = 'localhost'
 # Tuple of the manage.py commands you want executed everytime new source code is deployed
-EXTRA_MANAGE_COMMANDS = tuple()
+EXTRA_MANAGE_COMMANDS = (
+    'collectstatic --noinput',  # collect the static files
+    'migrate --noinput',        # migrate the database
+)

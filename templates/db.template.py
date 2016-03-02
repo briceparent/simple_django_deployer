@@ -5,7 +5,7 @@ DATABASES = {
         'NAME': '{DATABASE}',
         'USER': '{DB_USER}',
         'PASSWORD': '{DB_PASSWORD}',
-        'HOST': '',
+        'HOST': 'localhost',
         'PORT': '',
     }
 }

@@ -15,6 +15,10 @@ Requirements :
     - Debian-based system (uses apt-get to install the packages)
     - Systemd (uses systemd to restart services) : Ubuntu 15.04+ work like a charm
     - Not sure if it works to deploy Python2.x Django projects
+* inside the source code :
+    - Django, gunicorn and psycopg2 should be in a requirements.txt file at the root of the project
+    - The settings file should be as described in django_settings_contents.py
+    - A settings.py file should be created. A pre-filled model can be found in settings.sample.py.
 
 Caution :
 - The settings found in deployer/settings.py are shared between all servers and sites, which means

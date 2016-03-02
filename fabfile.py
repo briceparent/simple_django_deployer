@@ -78,7 +78,7 @@ def add_site(domain="www.*", port=80, site_name="production", user="django"):
     env.user = "root"
     db_password = _random_string(12)
     db_user = "django" + _random_string(6)
-    db_name = site_name
+    db_name = site_name.replace("-", "_")
     queries = (
         'sudo -u postgres psql -c "CREATE USER {DB_USER} WITH PASSWORD \'{DB_PASSWORD}\';"',
         'sudo -u postgres psql -c "CREATE DATABASE {DATABASE};"',
@@ -121,8 +121,6 @@ def deploy_tag(tag="tag", user="Django", site_name="", domain="", server_type=Tr
     _update_source_code(source_folder, tag, is_production)
     _update_settings(source_folder, domain, is_production)
     _update_virtualenv_requirements(source_folder)
-    _collect_static_files(source_folder)
-    _migrate_database(source_folder)
     _restart_gunicorn(site_name)
     _launch_extra_manage_commands(source_folder)
 
@@ -155,12 +153,12 @@ def _update_source_code(source_folder, deploy_tag, is_production_server):
 
 
 def _update_settings(source_folder, domain, is_production_server):
-    # We get the domain's IP for the ALLOWED_HOSTS setting (last line of dig +short)
-    ip = local('dig +short {} | tail -n1;'.format(domain), capture=True)
+    # We get the domain's IP for the ALLOWED_HOSTS setting
+    ip = local("getent hosts {} | awk '{{ print $1}}'".format(domain), capture=True)
 
     settings_path = '{}/{}/settings.py'.format(source_folder, MAIN_APP)
     sed(settings_path, "DEBUG = True", "DEBUG = False")
-    sed(settings_path, 'ALLOWED_HOSTS = [DOMAIN, "127.0.0.1"]', 'ALLOWED_HOSTS = [DOMAIN, "{}"]'.format(ip))
+    sed(settings_path, 'ALLOWED_HOSTS = \[DOMAIN, "127.0.0.1"\]', 'ALLOWED_HOSTS = [DOMAIN, "{}"]'.format(ip))
     sed(settings_path, 'DOMAIN = "{}"'.format(DEV_DOMAIN), 'DOMAIN = "%s"' % (domain,))
     if not is_production_server:
         sed(settings_path, 'SERVER_TYPE = SERVER_TYPE_DEVELOPMENT', 'SERVER_TYPE = SERVER_TYPE_STAGING')
@@ -185,14 +183,6 @@ def _update_virtualenv_requirements(source_folder):
 
 def _get_manage_dot_py_command(source_folder):
     return 'cd {} && ../{}/bin/python3 manage.py'.format(source_folder, VIRTUALENV_FOLDER_NAME)
-
-
-def _collect_static_files(source_folder):
-    run(_get_manage_dot_py_command(source_folder) + ' collectstatic --noinput')
-
-
-def _migrate_database(source_folder):
-    run(_get_manage_dot_py_command(source_folder) + ' migrate --noinput')
 
 
 def _launch_extra_manage_commands(source_folder):
