@@ -193,9 +193,9 @@ def print_tags_list():
 
 
 def get_git_branch():
-    command = 'git name-rev --name-only HEAD'
+    command = 'git branch | grep "*"'
     p = os.popen(command, "r")
-    return p.readline()[:-1]
+    return p.readline()[:-1][2:]
 
 
 def deploy(parser):
@@ -227,13 +227,13 @@ def deploy(parser):
 
         branch = get_git_branch()
         if branch != "master":
-            print("Production sites may only be deployed with tags on master branch")
+            print("Production sites may only be deployed with tags on master branch (and not {})".format(branch))
             return
 
     print("Tag to deploy : {}".format(parser.tag))
     execute(deploy_tag, user=server['user'], site_name=site['site_name'], is_production=site['is_production'],
             domain=site['domain'], tag=tag, hosts=[server['host']])
-    print("Tag deployment ended")
+    print("Tag {} successfully deployed to {}:{}.".format(tag, site_data['domain'], site_data['port']))
 
 
 def createsuperuser(parser):

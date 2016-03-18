@@ -7,7 +7,7 @@ from fabric.contrib.files import append, exists, sed
 from fabric.api import env, local, run, put, sudo
 
 try:
-    from settings import MAIN_APP, REPO_URL, VIRTUALENV_FOLDER_NAME, DEV_DOMAIN, EXTRA_MANAGE_COMMANDS
+    import settings
 except ImportError as e:
     print("There is no settings.py file. You should create one, based from settings.sample.py.")
     raise ImportError(e)
@@ -48,10 +48,10 @@ def add_site(domain="www.*", port=80, site_name="production", user="django"):
                 ('\{SERVER_NAME\}', domain),
                 ('\{USER\}', user),
                 ('\{SITE_NAME\}', site_name),
-                ('\{MAIN_APP\}', MAIN_APP))
+                ('\{MAIN_APP\}', settings.MAIN_APP))
 
     env.user = "root"
-    repository = REPO_URL
+    repository = settings.REPO_URL
 
     # Nginx config
     nginx_file = '{}.conf'.format(site_name)
@@ -95,7 +95,7 @@ def add_site(domain="www.*", port=80, site_name="production", user="django"):
     run('git clone {repo} {folder}/source'.format(repo=repository, folder=project_folder))  # local db
 
     # db conf
-    db_settings_file = '{folder}/source/{app}/db.py'.format(folder=project_folder, app=MAIN_APP)
+    db_settings_file = '{folder}/source/{app}/db.py'.format(folder=project_folder, app=settings.MAIN_APP)
     put('templates/db.template.py', db_settings_file)
     db_sed_data = (('\{DB_PASSWORD\}', db_password),
                    ('\{DB_USER\}', db_user),
@@ -103,13 +103,13 @@ def add_site(domain="www.*", port=80, site_name="production", user="django"):
     _sed_all(db_settings_file, db_sed_data)
 
     # Virtualenv
-    run('virtualenv --python=python3 {folder}/{env}'.format(folder=project_folder, env=VIRTUALENV_FOLDER_NAME))
+    run('virtualenv --python=python3 {folder}/{env}'.format(folder=project_folder, env=settings.VIRTUALENV_FOLDER_NAME))
 
     # Copying the local mail_settings file if there is one
-    local_mail_settings_file = '../{}/mail_settings.py'.format(MAIN_APP)
+    local_mail_settings_file = '../{}/mail_settings.py'.format(settings.MAIN_APP)
     if os.path.exists(local_mail_settings_file):
         put(local_mail_settings_file, '{folder}/source/{app}/mail_settings.py'.format(
-            folder=project_folder, app=MAIN_APP))
+            folder=project_folder, app=settings.MAIN_APP))
 
 
 # Here, we deploy the given tag on the given server_type
@@ -118,11 +118,15 @@ def deploy_tag(tag="tag", user="Django", site_name="", domain="", server_type=Tr
     print("Deploying tag {} to {} (production? {})".format(tag, env.host, is_production))
     site_folder = '/home/%s/sites/%s' % (user, site_name)
     source_folder = site_folder + '/source'
+    if settings.EXTRA_MANAGE_COMMANDS_START:
+        _launch_extra_manage_commands(source_folder, settings.EXTRA_MANAGE_COMMANDS_START)
+
     _update_source_code(source_folder, tag, is_production)
     _update_settings(source_folder, domain, is_production)
     _update_virtualenv_requirements(source_folder)
     _restart_gunicorn(site_name)
-    _launch_extra_manage_commands(source_folder)
+    if settings.EXTRA_MANAGE_COMMANDS_END:
+        _launch_extra_manage_commands(source_folder, settings.EXTRA_MANAGE_COMMANDS_END)
 
 
 # Here, we create a superuser on the given server_type
@@ -135,7 +139,7 @@ def create_super_user(django_user="Django", username="admin", email=None, site_n
              "User.objects.create_superuser('{username}', '{email}', '{password}')".format(
                  username=username, email=email, password=password)
     run("cd {folder} && echo \"{script}\" | ../{env}/bin/python3 manage.py shell".format(
-        folder=source_folder, script=script, env=VIRTUALENV_FOLDER_NAME))
+        folder=source_folder, script=script, env=settings.VIRTUALENV_FOLDER_NAME))
     print("Password for the new user : " + password)
 
 
@@ -156,16 +160,16 @@ def _update_settings(source_folder, domain, is_production_server):
     # We get the domain's IP for the ALLOWED_HOSTS setting
     ip = local("getent hosts {} | awk '{{ print $1}}'".format(domain), capture=True)
 
-    settings_path = '{}/{}/settings.py'.format(source_folder, MAIN_APP)
+    settings_path = '{}/{}/settings.py'.format(source_folder, settings.MAIN_APP)
     sed(settings_path, "DEBUG = True", "DEBUG = False")
     sed(settings_path, 'ALLOWED_HOSTS = \[DOMAIN, "127.0.0.1"\]', 'ALLOWED_HOSTS = [DOMAIN, "{}"]'.format(ip))
-    sed(settings_path, 'DOMAIN = "{}"'.format(DEV_DOMAIN), 'DOMAIN = "%s"' % (domain,))
+    sed(settings_path, 'DOMAIN = "{}"'.format(settings.DEV_DOMAIN), 'DOMAIN = "%s"' % (domain,))
     if not is_production_server:
         sed(settings_path, 'SERVER_TYPE = SERVER_TYPE_DEVELOPMENT', 'SERVER_TYPE = SERVER_TYPE_STAGING')
     else:
         sed(settings_path, 'SERVER_TYPE = SERVER_TYPE_DEVELOPMENT', 'SERVER_TYPE = SERVER_TYPE_PRODUCTION')
 
-    secret_key_file = '{}/{}/secret_key.py'.format(source_folder, MAIN_APP)
+    secret_key_file = '{}/{}/secret_key.py'.format(source_folder, settings.MAIN_APP)
     if not exists(secret_key_file):
         chars = 'abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)'
         key = ''.join(random.SystemRandom().choice(chars) for _ in range(50))
@@ -175,18 +179,18 @@ def _update_settings(source_folder, domain, is_production_server):
 
 
 def _update_virtualenv_requirements(source_folder):
-    virtualenv_folder = '{}/../{}'.format(source_folder, VIRTUALENV_FOLDER_NAME)
+    virtualenv_folder = '{}/../{}'.format(source_folder, settings.VIRTUALENV_FOLDER_NAME)
     run('%s/bin/pip install -r %s/requirements.txt' % (
             virtualenv_folder, source_folder
     ))
 
 
 def _get_manage_dot_py_command(source_folder):
-    return 'cd {} && ../{}/bin/python3 manage.py'.format(source_folder, VIRTUALENV_FOLDER_NAME)
+    return 'cd {} && ../{}/bin/python3 manage.py'.format(source_folder, settings.VIRTUALENV_FOLDER_NAME)
 
 
-def _launch_extra_manage_commands(source_folder):
-    for command in EXTRA_MANAGE_COMMANDS:
+def _launch_extra_manage_commands(source_folder, commands):
+    for command in commands:
         run(_get_manage_dot_py_command(source_folder) + ' ' + command)
 
 
